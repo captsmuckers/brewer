@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin: 0; display: flex; height: 100vh; background: #1E1F22; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none; overflow: hidden; }
+    
+    /* Left Sidebar */
+    #sidebar { width: 72px; background: #1E1F22; display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 8px; overflow-y: auto; z-index: 10; flex-shrink: 0; border-right: 1px solid #111112; }
+    
+    /* Server Icons */
+    .server-btn { width: 48px; height: 48px; border-radius: 50%; background: #313338; color: #DBDEE1; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s ease; font-weight: 600; font-size: 14px; overflow: hidden; text-transform: uppercase; }
+    .server-btn:hover { border-radius: 16px; background: #5865F2; color: white; }
+    .server-btn.active { border-radius: 16px; background: #5865F2; color: white; }
+    
+    .server-btn img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none; }
+    
+    /* The Add Server Button */
+    #add-server { background: #313338; color: #23A559; font-size: 24px; font-weight: 300; margin-top: 8px; flex-shrink: 0; }
+    #add-server:hover { background: #23A559; color: white; }
+    
+    /* Main Content Area */
+    #content { flex-grow: 1; background: #313338; position: relative; display: flex; flex-direction: column; }
+    
+    /* Container for each server's webview */
+    .view-container { width: 100%; height: 100%; display: none; }
+    .view-container.active { display: flex; }
+    webview { width: 100%; height: 100%; border: none; flex-grow: 1; }
+    
+    /* Welcome Screen overlay */
+    #welcome-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #949BA4; text-align: center; z-index: 1; }
+    #welcome-screen h1 { color: #F2F3F5; font-size: 32px; margin-bottom: 10px; font-weight: 600; }
+    #welcome-screen p { font-size: 18px; margin: 0; }
+    #welcome-screen strong { color: #23A559; font-size: 24px; vertical-align: middle; }
+
+    /* Custom Add Server Modal */
+    #modal-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
+    .modal-box { background: #313338; padding: 24px; border-radius: 8px; width: 400px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 16px; }
+    .modal-box h2 { margin: 0; color: #F2F3F5; font-size: 20px; text-align: center; }
+    .modal-box input { background: #1E1F22; border: none; padding: 12px; border-radius: 4px; color: #DBDEE1; font-size: 14px; outline: none; user-select: auto; -webkit-user-select: auto; }
+    .modal-box input:focus { outline: 1px solid #5865F2; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+    .modal-btn { padding: 10px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+    .btn-cancel { background: transparent; color: #DBDEE1; }
+    .btn-cancel:hover { text-decoration: underline; }
+    .btn-submit { background: #5865F2; color: white; }
+    .btn-submit:hover { background: #4752C4; }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <div id="server-list"></div>
+    <div class="server-btn" id="add-server" title="Add a Server">+</div>
+  </div>
+
+  <div id="content">
+    <div id="welcome-screen">
+      <h1>Welcome to Brewer</h1>
+      <p>Click the <strong>+</strong> symbol on the left to add a server.</p>
+    </div>
+    <div id="webview-wrapper" style="width: 100%; height: 100%;"></div>
+  </div>
+
+  <div id="modal-overlay">
+    <div class="modal-box">
+      <h2>Add a Server</h2>
+      <input type="text" id="input-url" placeholder="Server URL or Invite Link">
+      <div class="modal-actions">
+        <button class="modal-btn btn-cancel" id="btn-cancel">Cancel</button>
+        <button class="modal-btn btn-submit" id="btn-submit">Add Server</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const webviewWrapper = document.getElementById('webview-wrapper');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const serverList = document.getElementById('server-list');
+    
+    const modalOverlay = document.getElementById('modal-overlay');
+    const inputUrl = document.getElementById('input-url');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    let servers = JSON.parse(localStorage.getItem('brewerServers')) || [];
+    let webviews = {}; // Map of URL origin to container element
+
+    function renderServers() {
+      serverList.innerHTML = '';
+      servers.forEach((server, index) => {
+        const btn = document.createElement('div');
+        btn.className = 'server-btn';
+        btn.title = server.url;
+        
+        const initials = server.name.substring(0, 2);
+        
+        if (server.icon) {
+            const img = document.createElement('img');
+            img.src = server.icon;
+            img.onerror = () => { btn.innerText = initials; }; 
+            btn.appendChild(img);
+        } else {
+            btn.innerText = initials;
+        }
+
+        btn.onclick = () => {
+          welcomeScreen.style.display = 'none';
+          
+          // Hide all webviews and remove active class from buttons
+          document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+          document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
+
+          // Lazy-load the webview if it doesn't exist yet
+          if (!webviews[server.url]) {
+            const container = document.createElement('div');
+            container.className = 'view-container';
+            
+            const wv = document.createElement('webview');
+            wv.src = server.startUrl || server.url;
+            wv.setAttribute('allowpopups', '');
+            
+            // Re-run the SPA logo scanner for the newly loaded server
+            wv.addEventListener('dom-ready', () => {
+              wv.executeJavaScript(`
+                new Promise((resolve) => {
+                  let attempts = 0;
+                  const interval = setInterval(() => {
+                    const img = document.querySelector('img[alt="Sharkord"]');
+                    if (img && img.src) {
+                      clearInterval(interval);
+                      resolve(img.src);
+                    }
+                    attempts++;
+                    if (attempts >= 10) {
+                      clearInterval(interval);
+                      resolve(null);
+                    }
+                  }, 500);
+                });
+              `).then((imageUrl) => {
+                if (imageUrl && servers[index].icon !== imageUrl) {
+                  servers[index].icon = imageUrl;
+                  localStorage.setItem('brewerServers', JSON.stringify(servers));
+                  renderServers();
+                  
+                  // Restore active state after re-render
+                  const updatedButtons = document.querySelectorAll('.server-btn');
+                  if (updatedButtons[index]) updatedButtons[index].classList.add('active');
+                }
+              });
+            });
+
+            container.appendChild(wv);
+            webviewWrapper.appendChild(container);
+            webviews[server.url] = container;
+          }
+
+          // Show the current server
+          webviews[server.url].classList.add('active');
+          btn.classList.add('active');
+        };
+        
+        btn.oncontextmenu = (e) => {
+          e.preventDefault();
+          if (confirm(`Remove this server?`)) {
+            if (webviews[server.url]) {
+              webviews[server.url].remove();
+              delete webviews[server.url];
+            }
+            servers.splice(index, 1);
+            localStorage.setItem('brewerServers', JSON.stringify(servers));
+            renderServers();
+            
+            if (servers.length === 0) {
+              welcomeScreen.style.display = 'flex';
+            }
+          }
+        };
+        serverList.appendChild(btn);
+      });
+    }
+
+    // Modal UI Handlers
+    document.getElementById('add-server').onclick = () => {
+      modalOverlay.style.display = 'flex';
+      inputUrl.focus();
+    };
+
+    btnCancel.onclick = () => {
+      modalOverlay.style.display = 'none';
+      inputUrl.value = '';
+    };
+
+    btnSubmit.onclick = () => {
+      let rawInput = inputUrl.value.trim();
+      if (rawInput) {
+        if (!rawInput.startsWith('http')) rawInput = 'https://' + rawInput;
+        
+        let urlObj;
+        try {
+          urlObj = new URL(rawInput);
+        } catch (e) {
+          alert("Invalid URL format");
+          return;
+        }
+
+        const baseUrl = urlObj.origin;
+        const fullInviteUrl = rawInput; 
+        const genName = urlObj.hostname.replace('www.', '').split('.')[0];
+
+        // Check for duplicates
+        const existingIndex = servers.findIndex(s => s.url === baseUrl);
+        if (existingIndex !== -1) {
+          modalOverlay.style.display = 'none';
+          inputUrl.value = '';
+          const buttons = document.querySelectorAll('.server-btn');
+          buttons[existingIndex].click();
+          
+          // Navigate existing webview to the invite link
+          const targetWv = webviews[baseUrl].querySelector('webview');
+          targetWv.src = fullInviteUrl;
+          return;
+        }
+
+        // Add new
+        servers.push({ 
+          name: genName || "SV", 
+          url: baseUrl, 
+          startUrl: fullInviteUrl 
+        });
+
+        localStorage.setItem('brewerServers', JSON.stringify(servers));
+        renderServers();
+        modalOverlay.style.display = 'none';
+        inputUrl.value = '';
+        
+        // Auto-switch to the new server
+        setTimeout(() => {
+          const lastBtn = serverList.lastElementChild;
+          if (lastBtn) lastBtn.click();
+        }, 100);
+      }
+    };
+
+    // Keyboard support for Modal
+    inputUrl.addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        btnSubmit.click();
+      }
+    });
+
+    // Initial render
+    renderServers();
+  </script>
+</body>
+</html>

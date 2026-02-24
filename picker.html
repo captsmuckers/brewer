@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #2f3136; color: white; margin: 20px; }
+     h2 { text-align: center; margin-bottom: 20px; font-weight: 600; }
+     
+     /* New styling for the category headers */
+     .category-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; border-bottom: 1px solid #4f545c; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; color: #b9bbbe; }
+     
+     /* Added margin to separate the two grids */
+     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-bottom: 30px; }
+     
+     .card { background: #202225; padding: 12px; border-radius: 8px; cursor: pointer; text-align: center; transition: background 0.2s; border: 2px solid transparent; }
+     .card:hover { background: #4f545c; border: 2px solid #5865F2; } /* Added a Discord-blue border on hover */
+     img { max-width: 100%; border-radius: 4px; border: 1px solid #1e1f22; }
+     h3 { font-size: 14px; margin-top: 10px; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+  <h2>Select what to share</h2>
+  
+  <div class="category-title">Screens</div>
+  <div class="grid" id="screens-container"></div>
+
+  <div class="category-title">Applications</div>
+  <div class="grid" id="windows-container"></div>
+
+  <script>
+    // Listen for the images from the background app
+    window.electronAPI.onSources((sources) => {
+       const screensContainer = document.getElementById('screens-container');
+       const windowsContainer = document.getElementById('windows-container');
+       
+       sources.forEach(source => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.innerHTML = `<img src="${source.thumbnail}" /><h3>${source.name}</h3>`;
+          
+          // When a user clicks a thumbnail, send the choice back to the app
+          div.onclick = () => window.electronAPI.selectSource(source.id);
+          
+          // Sort into the correct grid based on the ID prefix
+          if (source.id.startsWith('screen')) {
+              screensContainer.appendChild(div);
+          } else if (source.id.startsWith('window')) {
+              windowsContainer.appendChild(div);
+          }
+       });
+    });
+  </script>
+</body>
+</html>

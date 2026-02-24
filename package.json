@@ -1,0 +1,27 @@
+{
+  "name": "brewer",
+  "productName": "Brewer",
+  "version": "0.2.4",
+  "description": "Brewer - A Sharkord Multi-Server Client",
+  "author": "Capt_Smuckers",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.brewer.client",
+    "win": {
+      "icon": "icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^40.6.0"
+  }
+}
