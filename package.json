@@ -3,6 +3,7 @@
   "productName": "Brewer",
   "version": "0.3.0",
   "description": "Brewer - A Sharkord Multi-Server Client",
+  "desktopName": "brewer.desktop",
   "author": "Capt_Smuckers",
   "main": "main.js",
   "scripts": {
@@ -36,11 +37,17 @@
         "AppImage",
         "deb",
         "pacman"
-      ]
+      ],
+      "syncDesktopName": true,
+      "maintainer": "captsmuckers <captsmuckers@users.noreply.github.com>",
+      "executableName": "brewer"
     }
   },
   "devDependencies": {
     "electron": "^40.6.0",
     "electron-builder": "^26.0.12"
+  },
+  "allowScripts": {
+    "electron@40.6.0": true
   }
 }

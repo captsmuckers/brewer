@@ -116,18 +116,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
   justify-content: center;
 }
 
-.status-dot {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2.5px solid var(--rail);
-  background: var(--offline);
-}
-.status-dot.online { background: var(--online); }
-
 .rail-divider { width: 32px; height: 1px; background: var(--border); flex-shrink: 0; margin: 2px 0; }
 
 .rail-action {
@@ -161,7 +149,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
   flex-direction: column;
 }
 .view.active { display: flex; }
-.view webview { flex: 1; width: 100%; border: none; }
+/* A <webview> must compute to display:flex, or the object element Electron
+   puts inside it keeps its intrinsic 150px height and the guest page renders
+   into a 150px-tall viewport regardless of how big the element itself is. */
+.view webview {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: none;
+}
 
 /* A view that is mid-navigation on another origin (the OIDC hand-off, or a
    link that opened in place) gets a way back. */
@@ -329,9 +326,7 @@ input[type="text"]:focus { border-color: var(--accent); }
 body.fullscreen #rail { display: none; }
 body.fullscreen .view.active .origin-bar { display: none; }
 
-/* Single indicator node per rail item; syncRail() promotes it to an unread
-   badge or a connected dot. Two-class selectors so these beat the base rule
-   regardless of source order. */
+/* One indicator node per rail item, which syncRail() promotes to an unread
+   badge. Two-class selector so it beats the base rule regardless of order. */
 .indicator { display: none; }
 .indicator.badge { display: flex; }
-.indicator.status-dot { display: block; }

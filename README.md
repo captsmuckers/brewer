@@ -28,6 +28,18 @@ npm run dist:linux   # AppImage, deb, pacman
 npm run dist:win     # NSIS installer
 ```
 
+Building the Windows installer **from Linux** needs `wine`, which electron-builder
+runs to generate the NSIS uninstaller. Two things to know:
+
+- electron-builder allows that step 120 seconds and kills it otherwise, reporting
+  only `wine process failed ... Exit code: null`. On a cold Wine prefix the step
+  takes longer than that and the build fails with a 400 KB stub `.exe` next to a
+  full-size `.nsis.7z`. Run `wine --version` once to initialise the prefix first;
+  afterwards the whole build takes well under a minute.
+- If Wine offers to install `wine-mono`, decline it. NSIS doesn't need .NET, and
+  the dialog blocks the build until answered. Setting
+  `WINEDLLOVERRIDES="mscoree,mshtml="` suppresses it.
+
 ## Adding a server
 
 Click **+** and paste either the server address (`sharkord.example.com`) or a
@@ -75,9 +87,10 @@ is that your actual mic is not transmitted while that's in effect.
 
 **Voice keeps running in the background.** Switching servers hides a view, it
 doesn't unload it, so an active voice connection survives the switch. This is
-deliberate — it's what lets you listen to one server while reading another. The
-rail shows a green dot on every server you're currently connected to, and
-Brewer will happily hold you in two voice channels at once, so watch the dots.
+deliberate — it's what lets you listen to one server while reading another. Be
+aware that Brewer will happily hold you in two voice channels at once; nothing
+warns you, and Sharkord gives the shell no way to see voice state from outside
+the page.
 
 **Signing in with OIDC works.** Sharkord signs in by redirecting the whole page
 to your identity provider and back. Brewer allows that, and shows a slim bar

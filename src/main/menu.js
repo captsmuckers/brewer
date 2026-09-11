@@ -95,7 +95,7 @@ function buildAppMenu(win) {
           click: toShell(win, 'shell:cycle', -1)
         },
         { type: 'separator' },
-        { label: 'Jump to server', enabled: false, accelerator: 'CommandOrControl+1…9' }
+        { label: 'Jump to a server with Ctrl+1 to Ctrl+9', enabled: false }
       ]
     },
     {

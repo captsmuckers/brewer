@@ -9,7 +9,7 @@ const contextMenu = document.getElementById('context-menu');
 
 /** @type {Array<object>} */
 let servers = [];
-/** @type {Map<string, {el: HTMLElement, webview: Electron.WebviewTag, unread: number, connected: boolean, zoom: number}>} */
+/** @type {Map<string, {el: HTMLElement, webview: Electron.WebviewTag, unread: number, zoom: number, failed: boolean}>} */
 const views = new Map();
 let activeId = null;
 let settings = {};
@@ -20,21 +20,18 @@ let appInfo = {};
  * ------------------------------------------------------------------ */
 
 /**
- * Sharkord publishes connection and unread state through the document title:
- *   "Sharkord"      -> not signed in yet
- *   "My Server"     -> connected, nothing unread
- *   "My Server (7)" -> connected, 7 unread
- * (apps/client/src/components/routing/helpers.ts)
+ * Sharkord appends its unread count to the document title:
+ *   "My Server (7)" -> 7 unread
+ * (getDocumentTitle in apps/client/src/components/routing/helpers.ts, which
+ * only adds the suffix when the client is connected and has unreads.)
+ *
+ * The bare title is NOT a sign-in signal: applyServerBranding sets
+ * `document.title = info.name` as soon as /info resolves, which happens on
+ * the login screen, before any account exists.
  */
-function parseTitle(title) {
-  const text = String(title || '').trim();
-
-  if (!text || text === 'Sharkord') return { connected: false, name: null, unread: 0 };
-
-  const match = text.match(/^(.*?)\s\((\d+)\)$/);
-  if (match) return { connected: true, name: match[1], unread: Number(match[2]) };
-
-  return { connected: true, name: text, unread: 0 };
+function parseUnread(title) {
+  const match = String(title || '').trim().match(/\((\d+)\)$/);
+  return match ? Number(match[1]) : 0;
 }
 
 const displayName = (server) => server.customName || server.name || server.url;
@@ -78,7 +75,6 @@ function syncRail() {
 
     const state = views.get(server.id);
     const unread = state ? state.unread : 0;
-    const connected = state ? state.connected : false;
 
     item.classList.toggle('active', server.id === activeId);
     item.classList.toggle('unread', unread > 0);
@@ -91,9 +87,6 @@ function syncRail() {
     if (unread > 0) {
       indicator.classList.add('badge');
       indicator.textContent = unread > 99 ? '99+' : String(unread);
-    } else if (connected) {
-      indicator.classList.add('status-dot', 'online');
-      indicator.title = 'Connected';
     }
   }
 
@@ -127,7 +120,7 @@ function buildRailItem(server) {
   button.addEventListener('click', () => selectServer(server.id));
   item.appendChild(button);
 
-  // One node that syncRail() turns into an unread badge or a connected dot.
+  // One node that syncRail() turns into an unread badge when there is one.
   const indicator = document.createElement('span');
   indicator.className = 'indicator';
   item.appendChild(indicator);
@@ -226,10 +219,7 @@ async function ensureView(server) {
 
   viewsRoot.appendChild(container);
 
-  const state = {
-    el: container, webview, unread: 0, connected: false,
-    zoom: server.zoom || 0, failed: false
-  };
+  const state = { el: container, webview, unread: 0, zoom: server.zoom || 0, failed: false };
   views.set(server.id, state);
 
   backButton.addEventListener('click', () => webview.loadURL(server.url));
@@ -251,11 +241,7 @@ function wireView(server, state, originText, overlay) {
   });
 
   webview.addEventListener('page-title-updated', (event) => {
-    const { connected, unread } = parseTitle(event.title);
-
-    state.connected = connected;
-    state.unread = unread;
-
+    state.unread = parseUnread(event.title);
     syncRail();
   });
 
