@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- The shell itself loads nothing remote; server pages live in <webview>. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: http:;">
+  <title>Brewer</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+
+  <nav id="rail">
+    <div id="server-list"></div>
+    <button class="rail-action" id="add-server" title="Add a server (Ctrl+N)" aria-label="Add a server">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+    </button>
+    <div id="rail-spacer"></div>
+    <div class="rail-divider"></div>
+    <button class="rail-action" id="open-settings" title="Settings (Ctrl+,)" aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </nav>
+
+  <main id="content">
+    <div id="views"></div>
+    <div id="welcome">
+      <img src="../../../assets/icon.png" alt="">
+      <h1>Welcome to Brewer</h1>
+      <p>Add a Sharkord server to get started. Paste its address or an invite link.</p>
+      <p class="hint">Right-click a server icon for more options.</p>
+    </div>
+  </main>
+
+  <div id="context-menu"></div>
+
+  <dialog id="add-dialog">
+    <div class="dialog-body">
+      <h2>Add a Server</h2>
+      <label for="server-input">
+        Server address or invite link
+        <input type="text" id="server-input" placeholder="sharkord.example.com" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="preview" id="add-preview">
+        <img id="preview-icon" alt="">
+        <div class="meta">
+          <strong id="preview-name"></strong>
+          <span id="preview-detail"></span>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="add-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="add-submit">Add Server</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <div class="dialog-body">
+      <h2>Settings</h2>
+
+      <div class="settings-section">
+        <h3>Window</h3>
+        <label class="toggle">
+          <input type="checkbox" data-setting="minimizeToTray">
+          <span>Minimize to tray<small>Keeps voice connected while hidden.</small></span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" data-setting="closeToTray">
+          <span>Close to tray<small>Closing the window keeps Brewer running.</small></span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" data-setting="startMinimized">
+          <span>Start minimized</span>
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <h3>Screen sharing</h3>
+        <label class="toggle">
+          <input type="checkbox" data-setting="shareSystemAudio">
+          <span>Share system audio by default<small id="audio-support-note"></small></span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" data-setting="useSystemPicker">
+          <span>Use the system picker<small>Uses the OS capture dialog instead of Brewer's, where available.</small></span>
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <h3>Editing</h3>
+        <label class="toggle">
+          <input type="checkbox" data-setting="spellcheck">
+          <span>Spell check message input<small>Applies after a restart.</small></span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" data-setting="hardwareAcceleration">
+          <span>Hardware acceleration<small>Applies after a restart. Turn off if video tears.</small></span>
+        </label>
+      </div>
+
+      <p class="about" id="about-line"></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" id="settings-close">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="rename-dialog">
+    <div class="dialog-body">
+      <h2>Rename Server</h2>
+      <label for="rename-input">
+        Display name
+        <input type="text" id="rename-input" autocomplete="off">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="rename-reset">Use server name</button>
+        <button type="button" class="btn btn-primary" id="rename-save">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="shell.js"></script>
+</body>
+</html>

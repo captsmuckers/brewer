@@ -1,0 +1,337 @@
+/* Palette mirrors Sharkord's own dark theme (shadcn "neutral") so the rail
+   reads as one continuous surface with the server's sidebar next to it. */
+:root {
+  --bg: #0a0a0a;
+  --rail: #0a0a0a;
+  --panel: #171717;
+  --panel-raised: #262626;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #fafafa;
+  --muted: #a3a3a3;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
+  --danger: #ef4444;
+  --online: #22c55e;
+  --offline: #71717a;
+  --radius: 10px;
+  --rail-width: 72px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* ---------- server rail ---------- */
+
+#rail {
+  width: var(--rail-width);
+  flex-shrink: 0;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+#rail::-webkit-scrollbar { display: none; }
+
+#server-list { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+
+.rail-item { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+
+/* The pill on the left edge: tall when active, a dot when merely unread. */
+.rail-item::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 4px;
+  height: 0;
+  border-radius: 0 4px 4px 0;
+  background: var(--text);
+  transform: translateY(-50%);
+  transition: height 0.15s ease;
+}
+.rail-item.unread::before { height: 8px; }
+.rail-item.active::before { height: 32px; }
+
+.server-btn {
+  width: 48px;
+  height: 48px;
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--panel-raised);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+  transition: border-radius 0.15s ease, background 0.15s ease;
+}
+.server-btn:hover { border-radius: var(--radius); background: var(--accent); }
+.rail-item.active .server-btn { border-radius: var(--radius); background: var(--accent); }
+.server-btn img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+.rail-item.dragging { opacity: 0.4; }
+.rail-item.drop-target::after {
+  content: "";
+  position: absolute;
+  inset: -4px -8px;
+  border-top: 2px solid var(--accent-hover);
+}
+
+/* Unread count, mirroring the "(7)" Sharkord puts in the document title. */
+.badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--danger);
+  border: 2.5px solid var(--rail);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-dot {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2.5px solid var(--rail);
+  background: var(--offline);
+}
+.status-dot.online { background: var(--online); }
+
+.rail-divider { width: 32px; height: 1px; background: var(--border); flex-shrink: 0; margin: 2px 0; }
+
+.rail-action {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel-raised);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-radius 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.rail-action:hover { border-radius: var(--radius); background: var(--accent); color: #fff; }
+#add-server { color: var(--online); }
+#add-server:hover { background: var(--online); color: #fff; }
+#rail-spacer { flex: 1 1 auto; min-height: 8px; }
+
+/* ---------- content ---------- */
+
+#content { flex: 1; position: relative; display: flex; flex-direction: column; min-width: 0; }
+
+#views { flex: 1; position: relative; min-height: 0; }
+
+.view {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+}
+.view.active { display: flex; }
+.view webview { flex: 1; width: 100%; border: none; }
+
+/* A view that is mid-navigation on another origin (the OIDC hand-off, or a
+   link that opened in place) gets a way back. */
+.origin-bar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.view.off-origin .origin-bar { display: flex; }
+.origin-bar strong { color: var(--text); font-weight: 600; }
+.origin-bar button {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+.origin-bar button:hover { background: var(--accent); border-color: var(--accent); }
+
+.view-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg);
+  text-align: center;
+  padding: 24px;
+}
+.view.failed .view-overlay { display: flex; }
+.view-overlay h2 { margin: 0; font-size: 20px; }
+.view-overlay p { margin: 0; color: var(--muted); max-width: 460px; }
+.view-overlay code { background: var(--panel-raised); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--panel-raised);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#welcome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 32px;
+}
+#welcome img { width: 96px; height: 96px; opacity: 0.9; margin-bottom: 8px; }
+#welcome h1 { margin: 0; color: var(--text); font-size: 26px; }
+#welcome p { margin: 0; max-width: 420px; }
+#welcome .hint { font-size: 13px; color: var(--offline); }
+
+/* ---------- dialogs ---------- */
+
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 0;
+  width: min(460px, 92vw);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+.dialog-body { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+.dialog-body h2 { margin: 0; font-size: 18px; }
+.dialog-body label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+
+input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  user-select: text;
+}
+input[type="text"]:focus { border-color: var(--accent); }
+
+.toggle { flex-direction: row; align-items: center; gap: 10px; color: var(--text); cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.toggle span { display: block; }
+.toggle small { display: block; color: var(--muted); font-size: 12px; }
+
+.preview {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.preview.shown { display: flex; }
+.preview img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--panel-raised); }
+.preview .meta { min-width: 0; }
+.preview .meta strong { display: block; }
+.preview .meta span { color: var(--muted); font-size: 12px; }
+.preview.error { border-color: var(--danger); }
+.preview.error .meta strong { color: var(--danger); }
+
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.btn { border: none; border-radius: 8px; padding: 9px 16px; font-weight: 600; }
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { color: var(--text); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- context menu ---------- */
+
+#context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-raised);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: none;
+}
+#context-menu.shown { display: block; }
+#context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+#context-menu button:hover { background: var(--accent); color: #fff; }
+#context-menu button.danger { color: var(--danger); }
+#context-menu button.danger:hover { background: var(--danger); color: #fff; }
+#context-menu .menu-label { padding: 6px 10px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+#context-menu hr { border: none; border-top: 1px solid var(--border); margin: 5px 0; }
+
+.settings-section { display: flex; flex-direction: column; gap: 12px; }
+.settings-section h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.about { font-size: 12px; color: var(--muted); }
+.about code { background: var(--bg); padding: 2px 5px; border-radius: 4px; }
+
+/* HTML fullscreen inside a server view (the fullscreen button Sharkord added
+   to video and screen-share tiles) should hide Brewer's own chrome. */
+body.fullscreen #rail { display: none; }
+body.fullscreen .view.active .origin-bar { display: none; }
+
+/* Single indicator node per rail item; syncRail() promotes it to an unread
+   badge or a connected dot. Two-class selectors so these beat the base rule
+   regardless of source order. */
+.indicator { display: none; }
+.indicator.badge { display: flex; }
+.indicator.status-dot { display: block; }
