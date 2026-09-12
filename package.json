@@ -1,7 +1,7 @@
 {
   "name": "brewer",
   "productName": "Brewer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Brewer - A Sharkord Multi-Server Client",
   "desktopName": "brewer.desktop",
   "author": "Capt_Smuckers",

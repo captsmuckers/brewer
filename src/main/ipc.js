@@ -6,6 +6,7 @@ const store = require('./store');
 const badge = require('./badge');
 const tray = require('./tray');
 const { parseServerInput, probeServer } = require('./sharkord');
+const { IS_WAYLAND } = require('./screen-share');
 const { openExternally } = require('./web-contents');
 
 // The tray only exists while some setting actually needs it, so toggling
@@ -57,7 +58,8 @@ function registerIpc(getMainWindow) {
     version: app.getVersion(),
     platform: process.platform,
     electron: process.versions.electron,
-    chrome: process.versions.chrome
+    chrome: process.versions.chrome,
+    wayland: IS_WAYLAND
   }));
 
   // The renderer owns unread state (it reads every view's title), so it tells

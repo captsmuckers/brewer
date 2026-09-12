@@ -13,8 +13,21 @@ Built on Electron. Ships for Linux and Windows.
 
 ## Install
 
-Grab a build from [Releases](https://github.com/captsmuckers/brewer/releases), or
-build it yourself:
+Grab a build from [Releases](https://github.com/captsmuckers/brewer/releases).
+
+On Arch-based systems, **download the package before installing it**:
+
+```bash
+curl -L -O https://github.com/captsmuckers/brewer/releases/latest/download/brewer-0.3.1.pacman
+sudo pacman -U brewer-0.3.1.pacman
+```
+
+Handing pacman the URL directly (`pacman -U https://…`) fails with a signature
+error. That is pacman's `RemoteFileSigLevel`, which defaults to `Required`,
+whereas `LocalFileSigLevel` defaults to `Optional` — nothing is wrong with the
+package.
+
+Or build it yourself:
 
 ```bash
 npm install
@@ -67,8 +80,14 @@ browser, or remove it.
 
 ## Screen sharing
 
-Brewer shows its own picker with live previews of your screens and windows, split
-into tabs, plus a **Share system audio** toggle.
+On X11 and Windows, Brewer shows its own picker with live previews of your
+screens and windows, split into tabs, plus a **Share system audio** toggle.
+
+On **Wayland**, your desktop provides the share dialog itself through
+xdg-desktop-portal, and Brewer steps out of the way rather than showing a second
+picker on top of it. This is not optional: on Wayland, enumerating capture
+sources *is* what opens the portal, so an app that also draws its own picker ends
+up asking twice and capturing a session it can no longer address.
 
 **System audio is Windows-only.** Electron can only mix desktop audio into a
 capture stream via loopback on Windows, so the toggle is disabled elsewhere and

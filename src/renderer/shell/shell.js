@@ -707,6 +707,15 @@ async function init() {
       ? 'Captures desktop audio alongside the shared screen.'
       : 'Electron can only capture desktop audio on Windows. See the README for a PipeWire workaround.';
 
+  // The system picker option is macOS 15+ only; everywhere else the checkbox
+  // would be inert.
+  const pickerRow = document.getElementById('system-picker-row');
+  if (appInfo.platform !== 'darwin') pickerRow.hidden = true;
+
+  document.getElementById('picker-note').textContent = appInfo.wayland
+    ? 'On Wayland your desktop shows its own share dialog, so Brewer does not add a second one.'
+    : '';
+
   await migrateLegacyServers();
 
   servers = await api.servers.list();

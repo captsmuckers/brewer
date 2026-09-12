@@ -5,22 +5,31 @@ const path = require('path');
 const store = require('./store');
 
 // Electron can only mix system audio into a display-capture stream on Windows
-// ("loopback"). Elsewhere the stream is video-only and the user has to route
-// desktop audio in as a microphone -- see README for the PipeWire recipe.
+// ("loopback"). Elsewhere the stream is video-only.
 const SUPPORTS_LOOPBACK_AUDIO = process.platform === 'win32';
 
-// Each in-flight getDisplayMedia() call gets its own entry. v0.2 kept a single
-// module-level callback, so two servers asking to share at once clobbered
-// each other and one of them hung forever.
+// On Wayland, desktopCapturer.getSources() is not a silent enumeration: it
+// opens an xdg-desktop-portal session, which is the compositor's own "what do
+// you want to share?" dialog. The portal is therefore the picker, and calling
+// getSources() a second time starts a NEW session whose PipeWire node ids do
+// not match the first one's.
+const IS_WAYLAND =
+  process.platform === 'linux' &&
+  (process.env.XDG_SESSION_TYPE === 'wayland' || !!process.env.WAYLAND_DISPLAY);
+
+// Each in-flight getDisplayMedia() call gets its own entry, holding the source
+// objects from its single getSources() call. Looking a selection back up in
+// this array -- rather than re-enumerating -- is what keeps the Wayland
+// session alive and avoids re-prompting.
 const pending = new Map();
 let nextRequestId = 1;
 
-function buildSourceList(sources) {
+function serializeSources(sources) {
   return sources.map((s) => ({
     id: s.id,
     name: s.name,
     kind: s.id.startsWith('screen') ? 'screen' : 'window',
-    thumbnail: s.thumbnail.isEmpty() ? null : s.thumbnail.toDataURL(),
+    thumbnail: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : null,
     appIcon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : null
   }));
 }
@@ -43,18 +52,22 @@ function resolve(requestId, streams) {
   }
 }
 
-function cancel(requestId) {
-  // An empty stream set is how a display-media request is declined.
-  resolve(requestId, {});
+// An empty stream set is how a display-media request is declined.
+const cancel = (requestId) => resolve(requestId, {});
+
+function buildStreams(source, withAudio) {
+  const streams = { video: source };
+
+  if (withAudio && SUPPORTS_LOOPBACK_AUDIO) {
+    streams.audio = 'loopback';
+    // Don't replay captured desktop audio through the local speakers.
+    streams.enableLocalEcho = false;
+  }
+
+  return streams;
 }
 
-async function openPicker(parentWindow, requestId) {
-  const sources = await desktopCapturer.getSources({
-    types: ['screen', 'window'],
-    thumbnailSize: { width: 480, height: 270 },
-    fetchWindowIcons: true
-  });
-
+function openPicker(parentWindow, requestId, sources) {
   const pickerWindow = new BrowserWindow({
     width: 900,
     height: 640,
@@ -79,13 +92,12 @@ async function openPicker(parentWindow, requestId) {
   entry.window = pickerWindow;
 
   pickerWindow.loadFile(path.join(__dirname, '..', 'renderer', 'picker', 'index.html'));
-
   pickerWindow.once('ready-to-show', () => pickerWindow.show());
 
   pickerWindow.webContents.once('did-finish-load', () => {
     pickerWindow.webContents.send('picker:sources', {
       requestId,
-      sources: buildSourceList(sources),
+      sources: serializeSources(sources),
       audio: {
         supported: SUPPORTS_LOOPBACK_AUDIO,
         enabled: store.getSettings().shareSystemAudio && SUPPORTS_LOOPBACK_AUDIO,
@@ -94,66 +106,86 @@ async function openPicker(parentWindow, requestId) {
     });
   });
 
-  // Closing the picker with no choice must decline the request, otherwise the
-  // page's getDisplayMedia() promise never settles.
+  // Closing the picker without choosing must decline, or the page's
+  // getDisplayMedia() promise never settles.
   pickerWindow.on('closed', () => {
     const current = pending.get(requestId);
     if (current) { current.window = null; cancel(requestId); }
   });
 }
 
+async function handleRequest(requestId, parentWindow) {
+  // The one and only enumeration for this request. On Wayland this is what
+  // raises the portal dialog; on X11 and Windows it is silent.
+  const sources = await desktopCapturer.getSources({
+    types: ['screen', 'window'],
+    thumbnailSize: IS_WAYLAND ? { width: 0, height: 0 } : { width: 480, height: 270 },
+    fetchWindowIcons: !IS_WAYLAND
+  });
+
+  const entry = pending.get(requestId);
+  if (!entry) return;
+
+  entry.sources = sources;
+
+  if (sources.length === 0) { cancel(requestId); return; }
+
+  // The portal already asked the user what to share; showing our own picker
+  // on top of that would be a second dialog for a decision already made.
+  if (IS_WAYLAND && sources.length === 1) {
+    const withAudio = store.getSettings().shareSystemAudio && SUPPORTS_LOOPBACK_AUDIO;
+    resolve(requestId, buildStreams(sources[0], withAudio));
+    return;
+  }
+
+  openPicker(parentWindow, requestId, sources);
+}
+
 function registerScreenShare(ses, getParentWindow) {
   const handler = (request, callback) => {
     const requestId = nextRequestId++;
-    pending.set(requestId, { callback, window: null });
+    pending.set(requestId, { callback, window: null, sources: [] });
 
-    openPicker(getParentWindow(), requestId).catch((err) => {
-      console.error('[brewer] could not enumerate capture sources:', err.message);
+    handleRequest(requestId, getParentWindow()).catch((err) => {
+      // A cancelled portal dialog lands here too, which is a decline.
+      console.error('[brewer] could not start screen capture:', err.message);
       cancel(requestId);
     });
   };
 
-  // `useSystemPicker` is ignored on platforms that lack one, and older builds
-  // reject the options argument outright.
-  try {
+  // useSystemPicker is macOS 15+ only; passing it elsewhere does nothing.
+  if (process.platform === 'darwin') {
     ses.setDisplayMediaRequestHandler(handler, {
       useSystemPicker: !!store.getSettings().useSystemPicker
     });
-  } catch {
+  } else {
     ses.setDisplayMediaRequestHandler(handler);
   }
 }
 
 function registerScreenShareIpc() {
-  ipcMain.on('picker:choose', async (_event, { requestId, sourceId, withAudio }) => {
-    if (!pending.has(requestId)) return;
+  ipcMain.on('picker:choose', (_event, { requestId, sourceId, withAudio }) => {
+    const entry = pending.get(requestId);
+    if (!entry) return;
 
-    try {
-      // Re-fetch so we hand Electron a live source handle rather than the
-      // serialisable copy the picker was rendered from.
-      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
-      const source = sources.find((s) => s.id === sourceId);
+    // Look the selection up in the sources this request already fetched.
+    // Re-enumerating here was the bug: on Wayland it opened a second portal
+    // session whose ids never matched, so every share attempt re-prompted and
+    // then failed.
+    const source = entry.sources.find((s) => s.id === sourceId);
 
-      if (!source) { cancel(requestId); return; }
+    if (!source) { cancel(requestId); return; }
 
-      const streams = { video: source };
-
-      if (withAudio && SUPPORTS_LOOPBACK_AUDIO) {
-        streams.audio = 'loopback';
-        // Don't replay the captured desktop audio back through the local
-        // speakers; the sharer already hears it from the source application.
-        streams.enableLocalEcho = false;
-      }
-
-      store.setSettings({ shareSystemAudio: !!withAudio });
-      resolve(requestId, streams);
-    } catch (err) {
-      console.error('[brewer] failed to resolve capture source:', err.message);
-      cancel(requestId);
-    }
+    store.setSettings({ shareSystemAudio: !!withAudio });
+    resolve(requestId, buildStreams(source, withAudio));
   });
 
   ipcMain.on('picker:cancel', (_event, { requestId }) => cancel(requestId));
 }
 
-module.exports = { registerScreenShare, registerScreenShareIpc, SUPPORTS_LOOPBACK_AUDIO };
+module.exports = {
+  registerScreenShare,
+  registerScreenShareIpc,
+  SUPPORTS_LOOPBACK_AUDIO,
+  IS_WAYLAND
+};
