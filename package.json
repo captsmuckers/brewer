@@ -48,6 +48,7 @@
     "electron-builder": "^26.0.12"
   },
   "allowScripts": {
-    "electron@40.6.0": true
+    "electron@40.6.0": true,
+    "electron-winstaller": false
   }
 }
