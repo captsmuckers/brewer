@@ -13,21 +13,38 @@ Built on Electron. Ships for Linux and Windows.
 
 ## Install
 
-Grab a build from [Releases](https://github.com/captsmuckers/brewer/releases).
+Each of these downloads the current release and installs it in one go. They
+resolve the latest version themselves, so they keep working after an update.
 
-On Arch-based systems, **download the package before installing it**:
+**Arch, CachyOS, EndeavourOS**
 
 ```bash
-curl -L -O https://github.com/captsmuckers/brewer/releases/latest/download/brewer-0.3.1.pacman
-sudo pacman -U brewer-0.3.1.pacman
+curl -L -o /tmp/brewer.pacman "$(curl -fsSL https://api.github.com/repos/captsmuckers/brewer/releases/latest | grep -oP '"browser_download_url":\s*"\K[^"]*\.pacman')" && sudo pacman -U /tmp/brewer.pacman
 ```
 
-Handing pacman the URL directly (`pacman -U https://…`) fails with a signature
-error. That is pacman's `RemoteFileSigLevel`, which defaults to `Required`,
-whereas `LocalFileSigLevel` defaults to `Optional` — nothing is wrong with the
-package.
+**Debian, Ubuntu, Mint**
 
-Or build it yourself:
+```bash
+curl -L -o /tmp/brewer.deb "$(curl -fsSL https://api.github.com/repos/captsmuckers/brewer/releases/latest | grep -oP '"browser_download_url":\s*"\K[^"]*\.deb')" && sudo apt install /tmp/brewer.deb
+```
+
+**Any Linux, no install**
+
+```bash
+curl -L -o ~/Brewer.AppImage "$(curl -fsSL https://api.github.com/repos/captsmuckers/brewer/releases/latest | grep -oP '"browser_download_url":\s*"\K[^"]*\.AppImage')" && chmod +x ~/Brewer.AppImage && ~/Brewer.AppImage
+```
+
+**Windows** — download the `.exe` from
+[Releases](https://github.com/captsmuckers/brewer/releases/latest) and run it.
+It is not code-signed, so Windows will say *"Windows protected your PC"*; click
+**More info → Run anyway**.
+
+> The package has to be downloaded before it is installed. Handing pacman a URL
+> directly (`pacman -U https://…`) fails with a signature error, because
+> pacman's `RemoteFileSigLevel` defaults to `Required` while `LocalFileSigLevel`
+> defaults to `Optional`. Nothing is wrong with the package.
+
+### Building it yourself
 
 ```bash
 npm install
@@ -41,17 +58,13 @@ npm run dist:linux   # AppImage, deb, pacman
 npm run dist:win     # NSIS installer
 ```
 
-Building the Windows installer **from Linux** needs `wine`, which electron-builder
-runs to generate the NSIS uninstaller. Two things to know:
-
-- electron-builder allows that step 120 seconds and kills it otherwise, reporting
-  only `wine process failed ... Exit code: null`. On a cold Wine prefix the step
-  takes longer than that and the build fails with a 400 KB stub `.exe` next to a
-  full-size `.nsis.7z`. Run `wine --version` once to initialise the prefix first;
-  afterwards the whole build takes well under a minute.
-- If Wine offers to install `wine-mono`, decline it. NSIS doesn't need .NET, and
-  the dialog blocks the build until answered. Setting
-  `WINEDLLOVERRIDES="mscoree,mshtml="` suppresses it.
+`dist:win` cross-builds the Windows installer and needs `wine` on the build
+machine — electron-builder runs it to generate the NSIS uninstaller. This
+affects nobody installing Brewer, only whoever builds it on Linux. Two gotchas:
+electron-builder allows that step 120 seconds and reports only
+`wine process failed ... Exit code: null` if it overruns, which a cold Wine
+prefix will; run `wine --version` once first. And decline Wine's offer to
+install `wine-mono` — NSIS has no use for .NET and the dialog blocks the build.
 
 ## Adding a server
 
